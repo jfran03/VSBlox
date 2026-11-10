@@ -1,0 +1,61 @@
+{
+  "name": "vsblox",
+  "displayName": "VSBlox",
+  "description": "Dock Roblox Studio as a panel inside VS Code.",
+  "version": "0.0.1",
+  "publisher": "vsblox",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "vsblox.openStudioPanel",
+        "title": "Open Roblox Studio Panel",
+        "category": "VSBlox"
+      },
+      {
+        "command": "vsblox.launchStudio",
+        "title": "Launch Roblox Studio",
+        "category": "VSBlox"
+      },
+      {
+        "command": "vsblox.undock",
+        "title": "Undock Roblox Studio",
+        "category": "VSBlox"
+      },
+      {
+        "command": "vsblox.setStudioSize",
+        "title": "Set Roblox Studio Size",
+        "category": "VSBlox"
+      }
+    ],
+    "configuration": {
+      "title": "VSBlox",
+      "properties": {
+        "vsblox.studioSize": {
+          "type": "string",
+          "default": "fit",
+          "pattern": "^(fit|\\d+\\s*[xX]\\s*\\d+)$",
+          "markdownDescription": "Size of the Roblox Studio window inside the panel: `fit` to fill the panel, or `WIDTHxHEIGHT` in pixels (like `1920x1080`). A fixed size is centered in the panel and cut off at its edges if the panel is smaller."
+        },
+        "vsblox.autoLaunchStudio": {
+          "type": "boolean",
+          "default": true,
+          "description": "Launch Roblox Studio automatically when the panel opens and Studio isn't running."
+        },
+        "vsblox.hideTitleBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hide Roblox Studio's Windows title bar inside the panel. Studio's own File/Plugins/Help menus stay visible."
+        }
+      }
+    }
+  }
+}
