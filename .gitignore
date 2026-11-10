@@ -1,3 +1,5 @@
 helper/target/
 extension/bin/
 node_modules/
+helper/target-package/
+extension/*.vsix

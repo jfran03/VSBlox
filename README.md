@@ -31,6 +31,11 @@ Nothing inside Studio is modified. It is only moved, resized and shown/hidden.
 3. Roblox Studio launches automatically if it isn't running (turn off with
    `vsblox.autoLaunchStudio`). An already-open Studio is docked as is.
 
+Package and install it in your normal VS Code:
+
+    node extension/scripts/package.js
+    code --install-extension extension/vsblox-0.0.1.vsix --force
+
 Debug the helper without touching any windows:
 
     helper/target/release/vsblox-helper.exe --probe --host-exe Code.exe

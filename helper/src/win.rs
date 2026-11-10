@@ -33,7 +33,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     DispatchMessageW, EnumWindows, GetClientRect, GetMessageW, GetWindow, GetWindowLongPtrW, GetWindowRect,
     GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, IsZoomed,
     PostThreadMessageW, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage,
-    EVENT_OBJECT_LOCATIONCHANGE, GWLP_HWNDPARENT, GW_OWNER, MSG, SWP_ASYNCWINDOWPOS,
+    EVENT_OBJECT_LOCATIONCHANGE, GWLP_HWNDPARENT, GWL_EXSTYLE, GWL_STYLE, GW_OWNER, MSG,
+    SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, WS_CAPTION, WS_EX_CLIENTEDGE,
+    WS_EX_DLGMODALFRAME, WS_EX_STATICEDGE, WS_EX_WINDOWEDGE, WS_THICKFRAME,
     SWP_NOACTIVATE, SWP_NOOWNERZORDER, SWP_NOZORDER, SW_HIDE, SW_RESTORE, SW_SHOWNOACTIVATE,
     WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_TIMER,
 };
@@ -362,6 +364,37 @@ fn calibrator(shared: Arc<Shared>, host_exe: String, main_tid: u32, wake: Receiv
 struct Saved {
     owner: isize,
     rect: Rect,
+    style: isize,
+    exstyle: isize,
+}
+
+/// Window style bits that draw the title bar and frame.
+const FRAME_STYLE: isize = (WS_CAPTION | WS_THICKFRAME) as isize;
+const FRAME_EXSTYLE: isize =
+    (WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE) as isize;
+
+/// Set Studio's frame style bits to `style`/`exstyle` (only the frame bits are
+/// touched). Returns true if anything changed.
+unsafe fn set_frame(studio: HWND, style: isize, exstyle: isize) -> bool {
+    let cur = GetWindowLongPtrW(studio, GWL_STYLE);
+    let cur_ex = GetWindowLongPtrW(studio, GWL_EXSTYLE);
+    let new = (cur & !FRAME_STYLE) | (style & FRAME_STYLE);
+    let new_ex = (cur_ex & !FRAME_EXSTYLE) | (exstyle & FRAME_EXSTYLE);
+    if new == cur && new_ex == cur_ex {
+        return false;
+    }
+    SetWindowLongPtrW(studio, GWL_STYLE, new);
+    SetWindowLongPtrW(studio, GWL_EXSTYLE, new_ex);
+    SetWindowPos(
+        studio,
+        null_mut(),
+        0,
+        0,
+        0,
+        0,
+        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+    );
+    true
 }
 
 struct Dock {
@@ -623,8 +656,17 @@ impl Dock {
             },
         };
 
-        // What surrounds the part of Studio we show: just the invisible resize
-        // borders, or the whole title bar and frame when hiding the title bar.
+        // Borderless while docked: no title bar or frame, like borderless
+        // fullscreen. Re-checked every update in case Studio puts them back.
+        if let Some(saved) = &self.saved {
+            let (style, exstyle) = if self.hide_title_bar { (0, 0) } else { (saved.style, saved.exstyle) };
+            if unsafe { set_frame(studio, style, exstyle) } {
+                self.placed = None;
+            }
+        }
+
+        // What surrounds the part of Studio we show. Borderless, this is all
+        // zero; if Studio refuses to drop its frame, the title bar is clipped.
         let (bl, bt, br, bb) = if self.hide_title_bar {
             chrome_insets(studio)
         } else {
@@ -693,7 +735,9 @@ impl Dock {
             }
             let rect = window_rect(studio).unwrap_or(Rect { x: 100, y: 100, w: 1280, h: 800 });
             let owner = GetWindowLongPtrW(studio, GWLP_HWNDPARENT);
-            self.saved = Some(Saved { owner, rect });
+            let style = GetWindowLongPtrW(studio, GWL_STYLE);
+            let exstyle = GetWindowLongPtrW(studio, GWL_EXSTYLE);
+            self.saved = Some(Saved { owner, rect, style, exstyle });
             // Owned windows always sit above their owner and minimize with it,
             // so Studio stays on top of VS Code without being "always on top".
             SetWindowLongPtrW(studio, GWLP_HWNDPARENT, self.host as isize);
@@ -713,6 +757,7 @@ impl Dock {
         unsafe {
             if IsWindow(studio) != 0 {
                 SetWindowRgn(studio, null_mut(), 1);
+                set_frame(studio, saved.style, saved.exstyle);
                 SetWindowLongPtrW(studio, GWLP_HWNDPARENT, saved.owner);
                 let r = saved.rect;
                 SetWindowPos(studio, null_mut(), r.x, r.y, r.w, r.h, SWP_NOZORDER | SWP_NOACTIVATE);
